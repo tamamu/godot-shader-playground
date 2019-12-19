@@ -1,0 +1,154 @@
+[gd_scene load_steps=4 format=2]
+
+[ext_resource path="res://View.gd" type="Script" id=1]
+
+[sub_resource type="Shader" id=1]
+code = "shader_type canvas_item;
+
+uniform vec2 RECT_UV;
+uniform vec2 pointer;
+
+const float PI = 3.141592;
+
+const vec4 GREEN0 = vec4(0.0, 0.65, 0.23, 1.0);
+const vec4 GREEN1 = vec4(0.0, 0.60, 0.20, 1.0);
+const vec4 GREEN2 = vec4(0.18, 0.76, 0.25, 1.0);
+const vec4 GREEN3 = vec4(0.23, 0.81, 0.26, 1.0);
+const vec4 GREEN4 = vec4(0.47, 0.92, 0.30, 1.0);
+
+const vec4 WHITE = vec4(1, 1, 1, 1.0);
+const vec4 BLACK = vec4(0, 0, 0, 1.0);
+
+vec4 rgb(float r, float g, float b) {
+	return vec4(r / 255.0, g / 255.0, b / 255.0, 1.0);
+}
+
+float map(float a, float min1, float max1, float min2, float max2) {
+	return mix(min2, max2, a/(max1-min1));
+}
+
+vec4 arrow(vec2 coords, vec2 resolution, vec4 viewport, vec4 iColor, float angle) {
+	vec2 P0 = vec2(0, 16);
+	vec2 P1 = vec2(16, 0);
+	vec2 P2 = vec2(32,16);
+	vec4 Q = vec4(12, 16, 8, 16);
+
+	vec4 color = iColor;
+
+	vec2 vp = coords - viewport.xy;
+	if (0.0 <= vp.x && vp.x <= viewport.z && 0.0 <= vp.y && vp.y <= viewport.w) {
+		vec2 dp = vec2(floor(vp.x / (viewport.z / resolution.x)), floor(vp.y / (viewport.w / resolution.y)));
+		dp = mat2(vec2(cos(angle), -sin(angle)), vec2(sin(angle), cos(angle))) * vec2(dp.x-16.0, dp.y-16.0);
+		dp = vec2(dp.x+16.0, dp.y+16.0);
+		color = WHITE;
+		
+		// arrow head
+		float area = 0.5 * (-P1.y*P2.x + P0.y*(-P1.x + P2.x) + P0.x*(P1.y - P2.y) + P1.x*P2.y);
+		float s = 1.0/(2.0*area)*(P0.y*P2.x - P0.x*P2.y + (P2.y - P0.y)*dp.x + (P0.x - P2.x)*dp.y);
+		float t = 1.0/(2.0*area)*(P0.x*P1.y - P0.y*P1.x + (P0.y - P1.y)*dp.x + (P1.x - P0.x)*dp.y);
+		if ((0.0 < s && s < 1.0) && (0.0 <= t && t <= 1.0) && (0.0 <= 1.0-s-t && 1.0-s-t <= 1.0)) {
+			color = BLACK;
+		}
+		// arrow stick
+		if (Q.x <= dp.x && dp.x <= Q.x+Q.z && Q.y <= dp.y && dp.y <= Q.y+Q.w) {
+			color = BLACK;
+		}
+	}
+	return color;
+}
+
+vec4 grass(vec2 coords, vec2 resolution, vec4 viewport, vec4 iColor, float frame, bool many, vec2 pusher) {
+	vec4 C0 = rgb(66., 121., 37.);
+	vec4 C1 = rgb(69., 124., 40.);
+	vec4 C2 = rgb(88., 147., 57.);
+	vec4 C3 = rgb(101., 168., 65.);
+	vec4 C4 = rgb(107., 176., 59.);
+	vec4 C5 = rgb(133., 193., 93.);
+
+	vec4 color = iColor;
+
+	vec2 vp = coords - viewport.xy;
+	if (0.0 <= vp.x && vp.x <= viewport.z && 0.0 <= vp.y && vp.y <= viewport.w) {
+		vec2 dp = vec2(floor(vp.x / (viewport.z / resolution.x)), floor(vp.y / (viewport.w / resolution.y)));
+		pusher = pusher - viewport.xy;
+		pusher = vec2(floor(pusher.x / (viewport.z / resolution.x)), floor(pusher.y / (viewport.w / resolution.y)));
+		//color = WHITE;
+
+		vec2 root = many ? vec2(-12, 24) : vec2(14, 0);
+		float loop = many ? 8.0 : 1.0;
+		// amplitude
+		float dx = sin((frame)*PI) * 1.7;
+		for (float iy=0.0; iy < loop; iy++) {
+			for (float ix=0.0; ix < loop; ix++) {
+				// variation
+				dx = sin((frame * map((3.7-ix)/(5.1-iy), 0.0, 56.0, -1.0, 1.0))*PI) * 1.7;
+				// push
+				if (distance(pusher, root) < 16.0) {
+					float d = pusher.x - root.x;
+					float alpha = sign(d) * (16.0-distance(pusher, root)) / 16.0;
+					dx *= 1.0-abs(alpha);
+				}
+				// root
+				if (root.x <= dp.x && dp.x <= root.x+2.0 && dp.y - 1.0 <= 0.0) color = C0;
+				// leaf
+				if (dp.y > 1.0 && floor(root.x+1.0-dx-pow(dp.y, 2)*dx*0.01) <= dp.x && dp.x <= floor(root.x+3.0-dx-pow(dp.y, 2)*dx*0.01)) {
+					if (dp.y - (root.y+18.0) <= 0.0) color = C5;
+					if (dp.y - (root.y+16.0) <= 0.0) color = C4;
+					if (dp.y - (root.y+12.0) <= 0.0) color = C3;
+					if (dp.y - (root.y+10.0) <= 0.0) color = C2;
+					if (dp.y - (root.y+8.0) <= 0.0) color = C1;
+					if (dp.y - (root.y+4.0) <= 0.0) color = C0;
+				}
+				root.x += 7.0;
+			}
+			root.x = pow(mod(iy+1.0, 3.0), 2.0)-12.0;
+			root.y -= 5.0;
+		}
+	}
+	return color;
+}
+
+void fragment() {
+	vec2 fp = vec2(pointer.x, RECT_UV.y-pointer.y);
+	// 風力 (←0.5 -0.5→)
+	float force = sin(TIME) * 0.5;
+	// 草揺らぎ
+	float fluct = sin(pow(mod(TIME, 2.0), 3) * 4.0);
+	// 草フレーム
+	float frame = force >= 0.0 ? map(fluct, -1.0, 1.0, force-force*force, force) : map(fluct, -1.0, 1.0, force-force*force, force);
+	COLOR = grass(FRAGCOORD.xy, vec2(32, 32), vec4(0, 0, 600, 600), WHITE, frame, false, fp); // 600 x 600
+	COLOR = grass(FRAGCOORD.xy, vec2(32, 32), vec4(768, 0, 256, 256), COLOR, frame, true, fp); // 256 x 256
+	COLOR = grass(FRAGCOORD.xy, vec2(32, 32), vec4(896, 256, 128, 128), COLOR, frame, true, fp); // 128 x 128
+	COLOR = grass(FRAGCOORD.xy, vec2(32, 32), vec4(960, 384, 64, 64), COLOR, frame, true, fp); // 64 x 64
+	COLOR = grass(FRAGCOORD.xy, vec2(32, 32), vec4(992, 448, 32, 32), COLOR, frame, true, fp); // 32 x 32
+
+	COLOR = arrow(FRAGCOORD.xy, vec2(32, 32), vec4(268, 500, 64, 64), COLOR, sin(TIME));
+	
+	if (distance(FRAGCOORD.xy, fp) < 4.0) {
+		COLOR = BLACK;
+	}
+}"
+
+[sub_resource type="ShaderMaterial" id=2]
+shader = SubResource( 1 )
+shader_param/RECT_UV = Vector2( 1024, 600 )
+shader_param/pointer = null
+
+[node name="GrassView" type="Node2D"]
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+margin_right = 1024.0
+margin_bottom = 600.0
+__meta__ = {
+"_edit_use_anchors_": false
+}
+
+[node name="View" type="ColorRect" parent="MarginContainer"]
+material = SubResource( 2 )
+margin_right = 1024.0
+margin_bottom = 600.0
+script = ExtResource( 1 )
+__meta__ = {
+"_edit_use_anchors_": false
+}
+rect_uv = Vector2( 1024, 600 )

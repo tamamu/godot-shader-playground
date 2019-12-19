@@ -1,0 +1,330 @@
+[gd_scene load_steps=5 format=2]
+
+[ext_resource path="res://ShaderRect.gd" type="Script" id=1]
+[ext_resource path="res://ShaderRect.tscn" type="PackedScene" id=2]
+
+[sub_resource type="Shader" id=1]
+code = "shader_type canvas_item;
+
+uniform vec2 RECT_UV;
+uniform vec2 pointer;
+
+const float PI = 3.141592;
+
+const vec4 WHITE = vec4(1, 1, 1, 1.0);
+const vec4 BLACK = vec4(0, 0, 0, 1.0);
+
+const float T = 1.0;
+const float F = 0.0;
+
+vec4 rgb(float r, float g, float b) {
+	return vec4(r / 255.0, g / 255.0, b / 255.0, 1.0);
+}
+
+float map(float a, float min1, float max1, float min2, float max2) {
+	return mix(min2, max2, a/(max1-min1));
+}
+
+vec4 poly(vec2 coords, vec2 p0, vec2 p1, vec2 p2, vec4 inheritColor, vec4 fillColor) {
+	float area = 0.5 * (-p1.y*p2.x + p0.y*(-p1.x + p2.x) + p0.x*(p1.y - p2.y) + p1.x*p2.y);
+	float s = 1.0/(2.0*area)*(p0.y*p2.x - p0.x*p2.y + (p2.y - p0.y)*coords.x + (p0.x - p2.x)*coords.y);
+	float t = 1.0/(2.0*area)*(p0.x*p1.y - p0.y*p1.x + (p0.y - p1.y)*coords.x + (p1.x - p0.x)*coords.y);
+	if ((0.0 < s && s < 1.0) && (0.0 <= t && t <= 1.0) && (0.0 <= 1.0-s-t && 1.0-s-t <= 1.0)) {
+		return fillColor;
+	} else {
+		return inheritColor;
+	}
+}
+
+vec4 rect(vec2 coords, vec2 leftTopCorner, vec2 size, vec4 inheritColor, vec4 fillColor, bool stroke) {
+	vec2 vp = coords - leftTopCorner;
+	if (stroke) {
+		if (vp.x < 1.0 || size.x-1.0 <= vp.x || vp.y < 1.0 || size.y-1.0 <= vp.y) {
+			return fillColor;
+		}
+	} else if (0.0 <= vp.x && vp.x <= size.x && 0.0 <= vp.y && vp.y <= size.y) {
+		return fillColor;
+	}
+	return inheritColor;
+}
+
+vec4 num(vec2 coords, vec2 resolution, vec4 viewport, vec4 iColor, vec4 r1, vec4 r2, vec4 r3, vec4 r4, vec4 r5) {
+	vec4 color = iColor;
+	vec2 vp = coords - viewport.xy;
+	vec2 block = vec2(resolution.x / 4.0, resolution.y / 5.0);
+	if (0.0 <= vp.x && vp.x <= viewport.z && 0.0 <= vp.y && vp.y <= viewport.w) {
+		vec2 dp = vec2(floor(vp.x / (viewport.z / resolution.x)), floor(vp.y / (viewport.w / resolution.y)));
+		color = r1.x < 1. ? color : rect(dp, vec2(block.x*0., block.y*0.), block, color, BLACK, false);
+		color = r1.y < 1. ? color : rect(dp, vec2(block.x*1., block.y*0.), block, color, BLACK, false);
+		color = r1.z < 1. ? color : rect(dp, vec2(block.x*2., block.y*0.), block, color, BLACK, false);
+		color = r1.w < 1. ? color : rect(dp, vec2(block.x*3., block.y*0.), block, color, BLACK, false);
+		
+		color = r2.x < 1. ? color : rect(dp, vec2(block.x*0., block.y*1.), block, color, BLACK, false);
+		color = r2.y < 1. ? color : rect(dp, vec2(block.x*1., block.y*1.), block, color, BLACK, false);
+		color = r2.z < 1. ? color : rect(dp, vec2(block.x*2., block.y*1.), block, color, BLACK, false);
+		color = r2.w < 1. ? color : rect(dp, vec2(block.x*3., block.y*1.), block, color, BLACK, false);
+		
+		color = r3.x < 1. ? color : rect(dp, vec2(block.x*0., block.y*2.), block, color, BLACK, false);
+		color = r3.y < 1. ? color : rect(dp, vec2(block.x*1., block.y*2.), block, color, BLACK, false);
+		color = r3.z < 1. ? color : rect(dp, vec2(block.x*2., block.y*2.), block, color, BLACK, false);
+		color = r3.w < 1. ? color : rect(dp, vec2(block.x*3., block.y*2.), block, color, BLACK, false);
+		
+		color = r4.x < 1. ? color : rect(dp, vec2(block.x*0., block.y*3.), block, color, BLACK, false);
+		color = r4.y < 1. ? color : rect(dp, vec2(block.x*1., block.y*3.), block, color, BLACK, false);
+		color = r4.z < 1. ? color : rect(dp, vec2(block.x*2., block.y*3.), block, color, BLACK, false);
+		color = r4.w < 1. ? color : rect(dp, vec2(block.x*3., block.y*3.), block, color, BLACK, false);
+		
+		color = r5.x < 1. ? color : rect(dp, vec2(block.x*0., block.y*4.), block, color, BLACK, false);
+		color = r5.y < 1. ? color : rect(dp, vec2(block.x*1., block.y*4.), block, color, BLACK, false);
+		color = r5.z < 1. ? color : rect(dp, vec2(block.x*2., block.y*4.), block, color, BLACK, false);
+		color = r5.w < 1. ? color : rect(dp, vec2(block.x*3., block.y*4.), block, color, BLACK, false);
+	}
+	return color;
+}
+
+vec4 zero(vec2 coords, vec2 resolution, vec4 viewport, vec4 iColor) {
+	return num(coords, resolution, viewport, iColor,
+		vec4(T, T, T, T),
+		vec4(T, F, F, T),
+		vec4(T, F, F, T),
+		vec4(T, F, F, T),
+		vec4(T, T, T, T));
+}
+
+vec4 one(vec2 coords, vec2 resolution, vec4 viewport, vec4 iColor) {
+	return num(coords, resolution, viewport, iColor,
+		vec4(F, F, F, T),
+		vec4(F, F, F, T),
+		vec4(F, F, F, T),
+		vec4(F, F, F, T),
+		vec4(F, F, F, T));
+}
+
+vec4 two(vec2 coords, vec2 resolution, vec4 viewport, vec4 iColor) {
+	return num(coords, resolution, viewport, iColor,
+		vec4(T, T, T, T),
+		vec4(F, F, F, T),
+		vec4(T, T, T, T),
+		vec4(T, F, F, F),
+		vec4(T, T, T, T));
+}
+
+vec4 three(vec2 coords, vec2 resolution, vec4 viewport, vec4 iColor) {
+	return num(coords, resolution, viewport, iColor,
+		vec4(T, T, T, T),
+		vec4(F, F, F, T),
+		vec4(T, T, T, T),
+		vec4(F, F, F, T),
+		vec4(T, T, T, T));
+}
+
+vec4 four(vec2 coords, vec2 resolution, vec4 viewport, vec4 iColor) {
+	return num(coords, resolution, viewport, iColor,
+		vec4(T, F, F, T),
+		vec4(T, F, F, T),
+		vec4(T, T, T, T),
+		vec4(F, F, F, T),
+		vec4(F, F, F, T));
+}
+
+vec4 five(vec2 coords, vec2 resolution, vec4 viewport, vec4 iColor) {
+	return num(coords, resolution, viewport, iColor,
+		vec4(T, T, T, T),
+		vec4(T, F, F, F),
+		vec4(T, T, T, T),
+		vec4(F, F, F, T),
+		vec4(T, T, T, T));
+}
+
+vec4 six(vec2 coords, vec2 resolution, vec4 viewport, vec4 iColor) {
+	return num(coords, resolution, viewport, iColor,
+		vec4(T, T, T, T),
+		vec4(T, F, F, F),
+		vec4(T, T, T, T),
+		vec4(T, F, F, T),
+		vec4(T, T, T, T));
+}
+
+vec4 seven(vec2 coords, vec2 resolution, vec4 viewport, vec4 iColor) {
+	return num(coords, resolution, viewport, iColor,
+		vec4(T, T, T, T),
+		vec4(F, F, F, T),
+		vec4(F, F, F, T),
+		vec4(F, F, F, T),
+		vec4(F, F, F, T));
+}
+
+vec4 eight(vec2 coords, vec2 resolution, vec4 viewport, vec4 iColor) {
+	return num(coords, resolution, viewport, iColor,
+		vec4(T, T, T, T),
+		vec4(T, F, F, T),
+		vec4(T, T, T, T),
+		vec4(T, F, F, T),
+		vec4(T, T, T, T));
+}
+
+vec4 nine(vec2 coords, vec2 resolution, vec4 viewport, vec4 iColor) {
+	return num(coords, resolution, viewport, iColor,
+		vec4(T, T, T, T),
+		vec4(T, F, F, T),
+		vec4(T, T, T, T),
+		vec4(F, F, F, T),
+		vec4(T, T, T, T));
+}
+
+vec4 numbers(vec2 coords, vec2 rightTopCorner, vec2 resolution, vec4 iColor, int value) {
+	vec4 color = iColor;
+	bool minus = sign(value) < 0;
+	value = abs(value);
+	int digit = 1;
+	int n = value % 10;
+	do {
+		if (n == 0) {
+			color =  zero(coords, resolution, vec4(rightTopCorner.x-float(digit)*resolution.x*1.2, rightTopCorner.y, resolution.x, resolution.y), color);
+		} else if (n == 1) {
+			color =   one(coords, resolution, vec4(rightTopCorner.x-float(digit)*resolution.x*1.2, rightTopCorner.y, resolution.x, resolution.y), color);
+		} else if (n == 2) {
+			color =   two(coords, resolution, vec4(rightTopCorner.x-float(digit)*resolution.x*1.2, rightTopCorner.y, resolution.x, resolution.y), color);
+		} else if (n == 3) {
+			color = three(coords, resolution, vec4(rightTopCorner.x-float(digit)*resolution.x*1.2, rightTopCorner.y, resolution.x, resolution.y), color);
+		} else if (n == 4) {
+			color =  four(coords, resolution, vec4(rightTopCorner.x-float(digit)*resolution.x*1.2, rightTopCorner.y, resolution.x, resolution.y), color);
+		} else if (n == 5) {
+			color =  five(coords, resolution, vec4(rightTopCorner.x-float(digit)*resolution.x*1.2, rightTopCorner.y, resolution.x, resolution.y), color);
+		} else if (n == 6) {
+			color =   six(coords, resolution, vec4(rightTopCorner.x-float(digit)*resolution.x*1.2, rightTopCorner.y, resolution.x, resolution.y), color);
+		} else if (n == 7) {
+			color = seven(coords, resolution, vec4(rightTopCorner.x-float(digit)*resolution.x*1.2, rightTopCorner.y, resolution.x, resolution.y), color);
+		} else if (n == 8) {
+			color = eight(coords, resolution, vec4(rightTopCorner.x-float(digit)*resolution.x*1.2, rightTopCorner.y, resolution.x, resolution.y), color);
+		} else if (value == 9) {
+			color =  nine(coords, resolution, vec4(rightTopCorner.x-float(digit)*resolution.x*1.2, rightTopCorner.y, resolution.x, resolution.y), color);
+		}
+		value = (value-n) / 10;
+		n = value % 10;
+		digit += 1;
+	} while (value > 0);
+	if (minus) {
+		color = rect(coords, vec2(rightTopCorner.x-float(digit)*resolution.x*1.2, rightTopCorner.y+resolution.y*0.4), vec2(resolution.x, resolution.y*0.2), color, BLACK, false);
+	} 
+	return color;
+}
+
+vec2 rotate(vec2 coords, vec2 center, float angle) {
+	coords = mat2(vec2(cos(angle), -sin(angle)), vec2(sin(angle), cos(angle))) *
+			 (coords - center);
+	coords += center;
+	return coords;
+}
+
+vec4 arrow(vec2 coords, vec2 resolution, vec4 viewport, vec4 iColor, float angle) {
+	vec2 P0 = vec2(0, resolution.y*0.5);
+	vec2 P1 = vec2(resolution.x*0.5, 0);
+	vec2 P2 = vec2(resolution.x,resolution.y*0.5);
+	vec4 Q = vec4(resolution.x*0.5-resolution.x*0.125, resolution.y*0.5, resolution.x*0.25, resolution.y*0.5);
+
+	vec4 color = iColor;
+
+	vec2 vp = coords - viewport.xy;
+	if (0.0 <= vp.x && vp.x <= viewport.z && 0.0 <= vp.y && vp.y <= viewport.w) {
+		vec2 dp = vec2(floor(vp.x / (viewport.z / resolution.x)), floor(vp.y / (viewport.w / resolution.y)));
+		dp = rotate(dp, resolution*0.5, angle);
+		color = WHITE;
+		
+		// arrow head
+		color = poly(dp, P0, P1, P2, color, BLACK);
+		// arrow stick
+		color = rect(dp, Q.xy, Q.zw, color, BLACK, false);
+	}
+	return color;
+}
+
+vec4 draw_hbar(vec2 coords, vec2 resolution, vec4 viewport, vec4 iColor, float per, bool minus) {
+	vec4 color = iColor;
+
+	vec2 vp = coords - viewport.xy;
+	if (0.0 <= vp.x && vp.x <= viewport.z && 0.0 <= vp.y && vp.y <= viewport.w) {
+		vec2 dp = vec2(floor(vp.x / (viewport.z / resolution.x)), floor(vp.y / (viewport.w / resolution.y)));
+		color = rect(dp, vec2(0, 0), resolution, color, BLACK, true);
+		if (minus) {
+			if (0.0 <= per) {
+				if (resolution.x/2.0 <= dp.x && dp.x <= resolution.x/2.0 + resolution.x/2.0 * per) {
+					color = BLACK;
+				}
+			} else {
+				if (resolution.x/2.0 * (1.0-abs(per)) <= dp.x && dp.x <= resolution.x/2.0) {
+					color = BLACK;
+				}
+			}
+		} else if (dp.x <= resolution.x * per) {
+			color = BLACK;
+		}
+	}
+	return color;
+}
+
+vec4 draw_vbar(vec2 coords, vec2 resolution, vec4 viewport, vec4 iColor, float per) {
+	vec4 color = iColor;
+
+	vec2 vp = coords - viewport.xy;
+	if (0.0 <= vp.x && vp.x <= viewport.z && 0.0 <= vp.y && vp.y <= viewport.w) {
+		vec2 dp = vec2(floor(vp.x / (viewport.z / resolution.x)), floor(vp.y / (viewport.w / resolution.y)));
+
+		if (dp.y <= resolution.y * per) {
+			color = BLACK;
+		}
+	}
+	return color;
+}
+
+float atan2(in float y, in float x) {
+    return x == 0.0 ? sign(y)*3.14/2.0 : atan(y, x);
+}
+
+void fragment() {
+	vec2 coords = UV * RECT_UV;
+	float alpha = clamp((pointer.x-RECT_UV.x*0.5)/(RECT_UV.x*0.5), -1.0, 1.0);
+	COLOR = numbers(coords, vec2(200, 4), vec2(16, 32), COLOR, int(alpha*100.0));
+	COLOR = draw_hbar(coords, vec2(100, 24), vec4(110, 40, 100, 24), COLOR, alpha, true);
+	float beta = alpha > 0.0 ? -(1.0-alpha) : (alpha+1.0);
+	COLOR = numbers(coords, vec2(200, 72), vec2(16, 32), COLOR, int(beta*100.0));
+	COLOR = draw_hbar(coords, vec2(100, 24), vec4(110, 108, 100, 24), COLOR, beta, true);
+
+	float numbers_y = 286.0;
+	COLOR = zero(coords, vec2(16, 32), vec4(12, numbers_y, 16, 32), COLOR);
+	COLOR =  one(coords, vec2(16, 32), vec4(30, numbers_y, 16, 32), COLOR);
+	COLOR =  two(coords, vec2(16, 32), vec4(48, numbers_y, 16, 32), COLOR);
+	COLOR =three(coords, vec2(16, 32), vec4(66, numbers_y, 16, 32), COLOR);
+	COLOR = four(coords, vec2(16, 32), vec4(84, numbers_y, 16, 32), COLOR);
+	COLOR = five(coords, vec2(16, 32), vec4(102, numbers_y, 16, 32), COLOR);
+	COLOR =  six(coords, vec2(16, 32), vec4(120, numbers_y, 16, 32), COLOR);
+	COLOR =seven(coords, vec2(16, 32), vec4(138, numbers_y, 16, 32), COLOR);
+	COLOR =eight(coords, vec2(16, 32), vec4(156, numbers_y, 16, 32), COLOR);
+	COLOR = nine(coords, vec2(16, 32), vec4(174, numbers_y, 16, 32), COLOR);
+	
+	COLOR = numbers(coords, vec2(150, 200), vec2(16, 32), COLOR, int(RECT_UV.x));
+	COLOR = numbers(coords, vec2(230, 200), vec2(16, 32), COLOR, int(RECT_UV.y));
+}
+
+"
+
+[sub_resource type="ShaderMaterial" id=2]
+shader = SubResource( 1 )
+shader_param/RECT_UV = Vector2( 320, 320 )
+shader_param/pointer = null
+
+[node name="ShaderAssortment" type="Node2D"]
+
+[node name="ShaderRect" parent="." instance=ExtResource( 2 )]
+
+[node name="ColorRect" type="ColorRect" parent="."]
+material = SubResource( 2 )
+margin_left = 618.97
+margin_top = 118.353
+margin_right = 938.97
+margin_bottom = 438.353
+script = ExtResource( 1 )
+__meta__ = {
+"_edit_use_anchors_": false
+}
+rect_uv = Vector2( 320, 320 )

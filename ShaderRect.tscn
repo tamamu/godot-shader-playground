@@ -1,0 +1,158 @@
+[gd_scene load_steps=4 format=2]
+
+[ext_resource path="res://ShaderRect.gd" type="Script" id=1]
+
+[sub_resource type="Shader" id=1]
+code = "shader_type canvas_item;
+
+uniform vec2 RECT_UV;
+uniform vec2 pointer;
+
+const float PI = 3.141592;
+
+const vec4 WHITE = vec4(1, 1, 1, 1.0);
+const vec4 BLACK = vec4(0, 0, 0, 1.0);
+
+vec4 rgb(float r, float g, float b) {
+	return vec4(r / 255.0, g / 255.0, b / 255.0, 1.0);
+}
+
+float map(float a, float min1, float max1, float min2, float max2) {
+	return mix(min2, max2, a/(max1-min1));
+}
+
+vec4 poly(vec2 coords, vec2 p0, vec2 p1, vec2 p2, vec4 inheritColor, vec4 fillColor) {
+	float area = 0.5 * (-p1.y*p2.x + p0.y*(-p1.x + p2.x) + p0.x*(p1.y - p2.y) + p1.x*p2.y);
+	float s = 1.0/(2.0*area)*(p0.y*p2.x - p0.x*p2.y + (p2.y - p0.y)*coords.x + (p0.x - p2.x)*coords.y);
+	float t = 1.0/(2.0*area)*(p0.x*p1.y - p0.y*p1.x + (p0.y - p1.y)*coords.x + (p1.x - p0.x)*coords.y);
+	if ((0.0 < s && s < 1.0) && (0.0 <= t && t <= 1.0) && (0.0 <= 1.0-s-t && 1.0-s-t <= 1.0)) {
+		return fillColor;
+	} else {
+		return inheritColor;
+	}
+}
+
+vec4 rect(vec2 coords, vec2 leftTopCorner, vec2 size, vec4 inheritColor, vec4 fillColor) {
+	if (leftTopCorner.x <= coords.x && coords.x <= leftTopCorner.x+size.x &&
+		leftTopCorner.y <= coords.y && coords.y <= leftTopCorner.y+size.y) {
+		return fillColor;
+	} else {
+		return inheritColor;
+	}
+}
+
+vec2 rotate(vec2 coords, vec2 center, float angle) {
+	coords = mat2(vec2(cos(angle), -sin(angle)), vec2(sin(angle), cos(angle))) *
+			 (coords - center);
+	coords += center;
+	return coords;
+}
+
+vec4 arrow(vec2 coords, vec2 resolution, vec4 viewport, vec4 iColor, float angle) {
+	vec2 P0 = vec2(0, resolution.y*0.5);
+	vec2 P1 = vec2(resolution.x*0.5, 0);
+	vec2 P2 = vec2(resolution.x,resolution.y*0.5);
+	vec4 Q = vec4(resolution.x*0.5-resolution.x*0.125, resolution.y*0.5, resolution.x*0.25, resolution.y*0.5);
+
+	vec4 color = iColor;
+
+	vec2 vp = coords - viewport.xy;
+	if (0.0 <= vp.x && vp.x <= viewport.z && 0.0 <= vp.y && vp.y <= viewport.w) {
+		vec2 dp = vec2(floor(vp.x / (viewport.z / resolution.x)), floor(vp.y / (viewport.w / resolution.y)));
+		dp = rotate(dp, resolution*0.5, angle);
+		color = WHITE;
+		
+		// arrow head
+		color = poly(dp, P0, P1, P2, color, BLACK);
+		// arrow stick
+		color = rect(dp, Q.xy, Q.zw, color, BLACK);
+	}
+	return color;
+}
+
+vec4 grass(vec2 coords, vec2 resolution, vec4 viewport, vec4 iColor, float frame) {
+	vec4 C0 = rgb(66., 121., 37.);
+	vec4 C1 = rgb(69., 124., 40.);
+	vec4 C2 = rgb(88., 147., 57.);
+	vec4 C3 = rgb(101., 168., 65.);
+	vec4 C4 = rgb(107., 176., 59.);
+	vec4 C5 = rgb(133., 193., 93.);
+
+	vec4 color = iColor;
+
+	vec2 vp = coords - viewport.xy;
+	if (0.0 <= vp.x && vp.x <= viewport.z && 0.0 <= vp.y && vp.y <= viewport.w) {
+		vec2 dp = vec2(floor(vp.x / (viewport.z / resolution.x)), floor(vp.y / (viewport.w / resolution.y)));
+		color = WHITE;
+
+		// amplitude
+		float dx = sin((frame)*PI) * 1.7;
+		// root
+		if (14.0 <= dp.x && dp.x <= 16.0 && dp.y - 1.0 <= 0.0) color = C0;
+		// leaf
+		if (dp.y > 1.0 && floor(15.0-dx-pow(dp.y, 2)*dx*0.01) <= dp.x && dp.x <= floor(17.0-dx-pow(dp.y, 2)*dx*0.01)) {
+			if (dp.y - 18.0 <= 0.0) color = C5;
+			if (dp.y - 16.0 <= 0.0) color = C4;
+			if (dp.y - 12.0 <= 0.0) color = C3;
+			if (dp.y - 10.0 <= 0.0) color = C2;
+			if (dp.y - 8.0 <= 0.0) color = C1;
+			if (dp.y - 4.0 <= 0.0) color = C0;
+		}
+	}
+	return color;
+}
+
+float atan2(in float y, in float x) {
+    return x == 0.0 ? sign(y)*3.14/2.0 : atan(y, x);
+}
+
+void fragment() {
+	// 風力 (←0.5 -0.5→)
+	//float force = sin(TIME) * 0.5;
+	// 草揺らぎ
+	//float fluct = sin(pow(mod(TIME, 2.0), 3) * 4.0);
+	// 草フレーム
+//	float frame = force >= 0.0 ? map(fluct, -1.0, 1.0, force-force*force, force) : map(fluct, -1.0, 1.0, force-force*force, force);
+//	COLOR = grass(FRAGCOORD.xy, vec2(32, 32), vec4(0, 0, 600, 600), BLACK, frame); // 600 x 600
+//	COLOR = grass(FRAGCOORD.xy, vec2(32, 32), vec4(768, 0, 256, 256), COLOR, frame); // 256 x 256
+//	COLOR = grass(FRAGCOORD.xy, vec2(32, 32), vec4(896, 256, 128, 128), COLOR, frame); // 128 x 128
+//	COLOR = grass(FRAGCOORD.xy, vec2(32, 32), vec4(960, 384, 64, 64), COLOR, frame); // 64 x 64
+//	COLOR = grass(FRAGCOORD.xy, vec2(32, 32), vec4(992, 448, 32, 32), COLOR, frame); // 32 x 32
+
+	vec2 coords = UV * RECT_UV;
+	for (float iy=0.; iy < 10.; iy++) {
+		for (float ix=0.; ix < 10.; ix++) {
+			COLOR = arrow(
+				coords,
+				vec2(32, 32),
+				vec4(32.*ix+1.0, 32.*iy, 32, 32),
+				COLOR,
+				atan2(pointer.y - 32.*iy-8.0, pointer.x - 32.*ix-8.0)+3.14/2.0);
+		}
+	}
+}
+
+
+
+
+
+
+
+"
+
+[sub_resource type="ShaderMaterial" id=2]
+shader = SubResource( 1 )
+shader_param/RECT_UV = Vector2( 320, 320 )
+shader_param/pointer = null
+
+[node name="ShaderRect" type="ColorRect"]
+material = SubResource( 2 )
+margin_left = 33.904
+margin_top = 103.202
+margin_right = 353.904
+margin_bottom = 423.202
+script = ExtResource( 1 )
+__meta__ = {
+"_edit_use_anchors_": false
+}
+rect_uv = Vector2( 320, 320 )
